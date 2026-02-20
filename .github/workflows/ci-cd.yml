@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
 
+# REQUIRED for Workload Identity Federation (OIDC)
 permissions:
   id-token: write
   contents: read
@@ -20,9 +21,15 @@ env:
 jobs:
   terraform-check:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
       - name: Terraform Format Check
         working-directory: healthcare-microservices/terraform
@@ -39,32 +46,38 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (OIDC)
+      # 🔐 Authenticate to Google Cloud using OIDC
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/749003944857/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: github-actions-sa-project-0d31@hackton-488008.iam.gserviceaccount.com
 
-      - name: Set up gcloud
+      - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Build & Push Patient Service
+      - name: Build & Push Patient Service Image
         run: |
           docker build -t $PATIENT_IMAGE healthcare-microservices/patient-service
           docker push $PATIENT_IMAGE
 
-      - name: Build & Push Appointment Service
+      - name: Build & Push Appointment Service Image
         run: |
           docker build -t $APPOINTMENT_IMAGE healthcare-microservices/appointment-service
           docker push $APPOINTMENT_IMAGE
 
-      - name: Terraform Apply (Cloud Run Deploy)
+      - name: Terraform Apply (Deploy Cloud Run)
         working-directory: healthcare-microservices/terraform
         run: |
           terraform init
