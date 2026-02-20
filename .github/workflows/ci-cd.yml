@@ -3,7 +3,6 @@ name: Build & Deploy to Cloud Run
 on:
   push:
     branches: [ main ]
-  pull_request:
 
 env:
   PROJECT_ID: project-0d31fa55-9a98-4b08-860
@@ -12,18 +11,13 @@ env:
   APPOINTMENT_IMAGE: us-central1-docker.pkg.dev/project-0d31fa55-9a98-4b08-860/healthcare/appointment-service:latest
 
 jobs:
-  terraform-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: terraform fmt -check
-      - run: terraform validate
-
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+
     steps:
       - uses: actions/checkout@v3
+
+      - uses: hashicorp/setup-terraform@v3
 
       - uses: google-github-actions/auth@v2
         with:
@@ -32,7 +26,7 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker
-        run: gcloud auth configure-docker $REGION-docker.pkg.dev
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: Build & Push Images
         run: |
@@ -46,6 +40,4 @@ jobs:
         working-directory: terraform
         run: |
           terraform init
-          terraform apply -auto-approve \
-            -var="patient_image=$PATIENT_IMAGE" \
-            -var="appointment_image=$APPOINTMENT_IMAGE" 
+          terraform apply -auto-approve
