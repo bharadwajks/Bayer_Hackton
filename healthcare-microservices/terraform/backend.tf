@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket  = "tf-state-healthcare"
-    prefix  = "cloudrun/dev"
+    bucket = "hackton-terraform-state"
+    prefix = "terraform/state"
   }
 }
