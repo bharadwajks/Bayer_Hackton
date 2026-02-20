@@ -3,30 +3,45 @@ name: Build & Deploy to Cloud Run
 on:
   push:
     branches: [ main ]
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
-  PROJECT_ID: project-0d31fa55-9a98-4b08-860
+  PROJECT_ID: hackton-488008
   REGION: us-central1
-  PATIENT_IMAGE: us-central1-docker.pkg.dev/project-0d31fa55-9a98-4b08-860/healthcare/patient-service:latest
-  APPOINTMENT_IMAGE: us-central1-docker.pkg.dev/project-0d31fa55-9a98-4b08-860/healthcare/appointment-service:latest
+  PATIENT_IMAGE: us-central1-docker.pkg.dev/hackton-488008/healthcare/patient-service:latest
+  APPOINTMENT_IMAGE: us-central1-docker.pkg.dev/hackton-488008/healthcare/appointment-service:latest
 
 jobs:
+  terraform-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: terraform fmt -check
+      - run: terraform validate
+
   deploy:
     runs-on: ubuntu-latest
-
+    if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
-
-      - uses: google-github-actions/auth@v2
+      # 🔐 OIDC Authentication (NO JSON KEYS)
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-sa@hackton-488008.iam.gserviceaccount.com
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
       - name: Build & Push Images
         run: |
@@ -40,4 +55,6 @@ jobs:
         working-directory: terraform
         run: |
           terraform init
-          terraform apply -auto-approve
+          terraform apply -auto-approve \
+            -var="patient_image=$PATIENT_IMAGE" \
+            -var="appointment_image=$APPOINTMENT_IMAGE"
