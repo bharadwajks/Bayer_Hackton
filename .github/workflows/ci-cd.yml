@@ -5,13 +5,16 @@ on:
     branches: [ main ]
   pull_request:
 
+#  REQUIRED for OIDC – DO NOT REMOVE
 permissions:
   id-token: write
   contents: read
 
 env:
   PROJECT_ID: hackton-488008
+  PROJECT_NUMBER: 749003944857
   REGION: us-central1
+
   PATIENT_IMAGE: us-central1-docker.pkg.dev/hackton-488008/healthcare/patient-service:latest
   APPOINTMENT_IMAGE: us-central1-docker.pkg.dev/hackton-488008/healthcare/appointment-service:latest
 
@@ -19,31 +22,43 @@ jobs:
   terraform-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: terraform fmt -check
-      - run: terraform validate
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terraform Format Check
+        working-directory: terraform
+        run: terraform fmt -check
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
 
   deploy:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
 
-      # 🔐 OIDC Authentication (NO JSON KEYS)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 🔐 Authenticate to Google Cloud using Workload Identity Federation (OIDC)
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          workload_identity_provider: projects/749003944857/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: github-actions-sa@hackton-488008.iam.gserviceaccount.com
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker
-        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Build & Push Images
+      - name: Build & Push Docker Images
         run: |
           docker build -t $PATIENT_IMAGE patient-service
           docker push $PATIENT_IMAGE
@@ -51,10 +66,12 @@ jobs:
           docker build -t $APPOINTMENT_IMAGE appointment-service
           docker push $APPOINTMENT_IMAGE
 
-      - name: Terraform Apply
+      - name: Terraform Apply (Deploy Cloud Run)
         working-directory: terraform
         run: |
           terraform init
           terraform apply -auto-approve \
+            -var="project_id=$PROJECT_ID" \
+            -var="region=$REGION" \
             -var="patient_image=$PATIENT_IMAGE" \
             -var="appointment_image=$APPOINTMENT_IMAGE"
