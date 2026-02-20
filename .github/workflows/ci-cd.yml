@@ -49,7 +49,7 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/749003944857/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: github-actions-sa@hackton-488008.iam.gserviceaccount.com
+          service_account: github-actions-sa-project-0d31@hackton-488008.iam.gserviceaccount.com
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
