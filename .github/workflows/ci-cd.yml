@@ -60,10 +60,10 @@ jobs:
 
       - name: Build & Push Docker Images
         run: |
-          docker build -t $PATIENT_IMAGE patient-service
+          docker build -t $PATIENT_IMAGE healthcare-microservices/patient-service
           docker push $PATIENT_IMAGE
 
-          docker build -t $APPOINTMENT_IMAGE appointment-service
+          docker build -t $APPOINTMENT_IMAGE healthcare-microservices/appointment-service
           docker push $APPOINTMENT_IMAGE
 
       - name: Terraform Apply (Deploy Cloud Run)
